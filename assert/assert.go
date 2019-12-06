@@ -1,3 +1,0 @@
-package assert
-
-func NotUsedAnyMore() {}
