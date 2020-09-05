@@ -1,27 +1,22 @@
-FROM ubuntu:latest as builder
+############################
+# STEP 1 build executable binary
+############################
+FROM golang:alpine AS builder
+RUN apk update && apk add --no-cache git bash wget curl
+WORKDIR /go/src/v2ray.com/core
+RUN git clone --progress https://github.com/v2fly/v2ray-core.git . && \
+    bash ./release/user-package.sh nosource noconf codename=$(git describe --tags) buildname=docker-fly abpathtgz=/tmp/v2ray.tgz
+############################
+# STEP 2 build a small image
+############################
+FROM alpine
 
-RUN apt-get update
-RUN apt-get install curl -y
-RUN curl -L -o /tmp/go.sh https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh
-RUN chmod +x /tmp/go.sh
-RUN /tmp/go.sh
+LABEL maintainer "V2Fly Community <vcptr@v2fly.org>"
+COPY --from=builder /tmp/v2ray.tgz /tmp
+RUN apk update && apk add ca-certificates && \
+    mkdir -p /usr/bin/v2ray && \
+    tar xvfz /tmp/v2ray.tgz -C /usr/bin/v2ray
 
-FROM alpine:latest
-
-LABEL maintainer "Darian Raymond <admin@v2ray.com>"
-
-COPY --from=builder /usr/bin/v2ray/v2ray /usr/bin/v2ray/
-COPY --from=builder /usr/bin/v2ray/v2ctl /usr/bin/v2ray/
-COPY --from=builder /usr/bin/v2ray/geoip.dat /usr/bin/v2ray/
-COPY --from=builder /usr/bin/v2ray/geosite.dat /usr/bin/v2ray/
-COPY config.json /etc/v2ray/config.json
-
-RUN set -ex && \
-    apk --no-cache add ca-certificates && \
-    mkdir /var/log/v2ray/ &&\
-    chmod +x /usr/bin/v2ray/v2ctl && \
-    chmod +x /usr/bin/v2ray/v2ray
-
+#ENTRYPOINT ["/usr/bin/v2ray/v2ray"]
 ENV PATH /usr/bin/v2ray:$PATH
-
 CMD ["v2ray", "-config=/etc/v2ray/config.json"]
